@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Tabungan Siswa"
+rootProject.name = "Tabungan Anggota"
 
 include(":app")

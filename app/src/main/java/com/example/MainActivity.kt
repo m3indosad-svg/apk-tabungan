@@ -31,13 +31,13 @@ class MainActivity : ComponentActivity() {
             TabunganSiswaTheme {
                 val snackbarHostState = remember { SnackbarHostState() }
                 val userRole by viewModel.userRole.collectAsStateWithLifecycle()
-                val currentStudent by viewModel.currentStudent.collectAsStateWithLifecycle()
-                val currentTransactions by viewModel.currentStudentTransactions.collectAsStateWithLifecycle()
+                val currentMember by viewModel.currentMember.collectAsStateWithLifecycle()
+                val currentTransactions by viewModel.currentMemberTransactions.collectAsStateWithLifecycle()
                 val currentAdmin by viewModel.currentAdmin.collectAsStateWithLifecycle()
-                val allStudents by viewModel.allStudents.collectAsStateWithLifecycle()
+                val allMembers by viewModel.allMembers.collectAsStateWithLifecycle()
                 val allTransactions by viewModel.allTransactions.collectAsStateWithLifecycle()
                 val pendingWithdrawals by viewModel.pendingWithdrawals.collectAsStateWithLifecycle()
-                val totalKas by viewModel.totalKasSekolah.collectAsStateWithLifecycle()
+                val totalKas by viewModel.totalKasTabungan.collectAsStateWithLifecycle()
                 val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
                 val snackBarMessage by viewModel.snackBarMessage.collectAsStateWithLifecycle()
 
@@ -62,9 +62,9 @@ class MainActivity : ComponentActivity() {
                     when (userRole) {
                         UserRole.NONE -> {
                             LoginScreen(
-                                onLoginStudent = { nis, pass -> viewModel.loginStudent(nis, pass) },
-                                onRegisterStudent = { nis, nama, kelas, pass ->
-                                    viewModel.registerStudent(nis, nama, kelas, pass)
+                                onLoginMember = { noRek, pass -> viewModel.loginMember(noRek, pass) },
+                                onRegisterMember = { noRek, nama, alamat, pass ->
+                                    viewModel.registerMember(noRek, nama, alamat, pass)
                                 },
                                 onLoginAdmin = { user, pass -> viewModel.loginAdmin(user, pass) },
                                 onOpenSettings = { showSettingsDialog = true },
@@ -73,9 +73,9 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        UserRole.SISWA -> {
-                            StudentDashboardScreen(
-                                student = currentStudent,
+                        UserRole.ANGGOTA -> {
+                            MemberDashboardScreen(
+                                member = currentMember,
                                 transactions = currentTransactions,
                                 onDeposit = { amount, desc -> viewModel.submitDeposit(amount, desc) },
                                 onWithdraw = { amount, desc -> viewModel.submitWithdrawal(amount, desc) },
@@ -89,20 +89,20 @@ class MainActivity : ComponentActivity() {
                             AdminDashboardScreen(
                                 admin = currentAdmin,
                                 totalKas = totalKas,
-                                allStudents = allStudents,
+                                allMembers = allMembers,
                                 allTransactions = allTransactions,
                                 pendingWithdrawals = pendingWithdrawals,
-                                onApproveWithdrawal = { id, nis, note ->
-                                    viewModel.approveWithdrawal(id, nis, note)
+                                onApproveWithdrawal = { id, noRek, note ->
+                                    viewModel.approveWithdrawal(id, noRek, note)
                                 },
-                                onRejectWithdrawal = { id, nis, reason ->
-                                    viewModel.rejectWithdrawal(id, nis, reason)
+                                onRejectWithdrawal = { id, noRek, reason ->
+                                    viewModel.rejectWithdrawal(id, noRek, reason)
                                 },
-                                onAdminAddTx = { amount, desc, nis, isSetoran ->
+                                onAdminAddTx = { amount, desc, noRek, isSetoran ->
                                     if (isSetoran) {
-                                        viewModel.submitDeposit(amount, desc, nis)
+                                        viewModel.submitDeposit(amount, desc, noRek)
                                     } else {
-                                        viewModel.submitWithdrawal(amount, desc, nis)
+                                        viewModel.submitWithdrawal(amount, desc, noRek)
                                     }
                                 },
                                 onLogout = { viewModel.logout() },

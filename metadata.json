@@ -1,6 +1,6 @@
 {
-  "name": "Tabungan Siswa",
-  "description": "Aplikasi Tabungan Siswa dan Sistem ACC Admin dengan Google Sheets dan Apps Script",
+  "name": "Tabungan Anggota",
+  "description": "Aplikasi Tabungan Anggota dengan Nomor Rekening, Nama Lengkap, Alamat, Sistem ACC Admin, dan Google Sheets",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

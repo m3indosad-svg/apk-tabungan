@@ -18,6 +18,7 @@ val SecondaryContainer = Color(0xFFE0F2F1)
 val OnSecondaryContainer = Color(0xFF004D40)
 
 // Tertiary Amber / Pending Status (#FFA000)
+val AccentGold = Color(0xFFFFD54F)
 val StatusPending = Color(0xFFF57C00)
 val StatusPendingBg = Color(0xFFFFF3E0)
 val StatusApproved = Color(0xFF2E7D32)

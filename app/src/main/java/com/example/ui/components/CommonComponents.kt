@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -22,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.local.MemberEntity
 import com.example.data.local.TransactionEntity
 import com.example.ui.theme.*
 
@@ -90,7 +92,8 @@ private data class Tuple4<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 @Composable
 fun TransactionCard(
     transaction: TransactionEntity,
-    showStudentInfo: Boolean = false,
+    showMemberInfo: Boolean = false,
+    showStudentInfo: Boolean = showMemberInfo,
     onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -119,7 +122,8 @@ fun TransactionCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f)
                 ) {
                     Box(
                         modifier = Modifier
@@ -138,17 +142,19 @@ fun TransactionCard(
 
                     Column {
                         Text(
-                            text = if (isTarik) "Penarikan Dana" else "Setoran Saldo",
+                            text = if (isTarik) "Penarikan Tabungan" else "Setoran Simpanan",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
+                            fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        if (showStudentInfo) {
+                        if (showMemberInfo || showStudentInfo) {
                             Text(
-                                text = "${transaction.namaSiswa} (${transaction.kelasSiswa})",
+                                text = "${transaction.namaAnggota} • Rek: ${transaction.noRek}",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         } else {
                             Text(
@@ -166,7 +172,7 @@ fun TransactionCard(
                     Text(
                         text = prefix + CurrencyUtils.formatRupiah(transaction.nominal),
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 15.sp,
+                        fontSize = 14.sp,
                         color = amountColor
                     )
                     Spacer(modifier = Modifier.height(2.dp))
@@ -191,7 +197,7 @@ fun TransactionCard(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
-                    if (showStudentInfo) {
+                    if (showMemberInfo || showStudentInfo) {
                         Text(
                             text = transaction.tanggal,
                             fontSize = 11.sp,
@@ -204,7 +210,7 @@ fun TransactionCard(
             if (transaction.catatanAdmin.isNotBlank() && transaction.catatanAdmin != "Otomatis Disetujui") {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Catatan Admin: ${transaction.catatanAdmin}",
+                    text = "Catatan Pengurus: ${transaction.catatanAdmin}",
                     fontSize = 11.sp,
                     color = if (transaction.status.contains("TOLAK", ignoreCase = true)) StatusRejected else NeutralTextSecondary,
                     fontWeight = FontWeight.Medium
@@ -213,6 +219,212 @@ fun TransactionCard(
         }
     }
 }
+
+@Composable
+fun MemberCard(
+    member: MemberEntity?,
+    isSaldoVisible: Boolean,
+    onToggleVisibility: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("member_card_info"),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFF0F2027),
+                            Color(0xFF203A43),
+                            Color(0xFF2C5364)
+                        )
+                    )
+                )
+                .padding(20.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Top Header Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = AccentGold.copy(alpha = 0.2f),
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountBalance,
+                                    contentDescription = null,
+                                    tint = AccentGold,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        Column {
+                            Text(
+                                text = "KARTU TABUNGAN ANGGOTA",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = 0.85f),
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                text = "Koperasi & Komunitas",
+                                fontSize = 9.sp,
+                                color = Color.White.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+
+                    // Account Number chip
+                    Surface(
+                        color = Color.White.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "Rek: ${member?.noRek ?: "---"}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AccentGold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Member Identity: Nama & Alamat
+                Text(
+                    text = member?.namaLengkap ?: "Nama Anggota",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White
+                )
+                if (!member?.alamat.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = member.alamat,
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.75f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.15f), thickness = 0.8.dp)
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Balance Section
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "SALDO AKTIF",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = 0.7f),
+                                letterSpacing = 0.8.sp
+                            )
+                            IconButton(
+                                onClick = onToggleVisibility,
+                                modifier = Modifier.size(20.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isSaldoVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = "Toggle Saldo",
+                                    tint = Color.White.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isSaldoVisible) CurrencyUtils.formatRupiah(member?.saldo ?: 0L) else "Rp ••••••••",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = AccentGold
+                        )
+                    }
+
+                    // Pending ACC notice if any
+                    val pending = member?.pendingPenarikan ?: 0L
+                    if (pending > 0L) {
+                        Surface(
+                            color = StatusPendingBg,
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, StatusPending.copy(alpha = 0.5f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                horizontalAlignment = Alignment.End
+                            ) {
+                                Text(
+                                    text = "Menunggu ACC",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = StatusPending
+                                )
+                                Text(
+                                    text = CurrencyUtils.formatRupiah(pending),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = StatusPending
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Wrapper for compatibility
+@Composable
+fun StudentCard(
+    student: MemberEntity?,
+    isSaldoVisible: Boolean,
+    onToggleVisibility: () -> Unit,
+    modifier: Modifier = Modifier
+) = MemberCard(
+    member = student,
+    isSaldoVisible = isSaldoVisible,
+    onToggleVisibility = onToggleVisibility,
+    modifier = modifier
+)
 
 @Composable
 fun SummaryStatCard(
@@ -282,7 +494,7 @@ fun QuickAmountSelector(
     onAmountSelected: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val quickAmounts = listOf(10000L, 20000L, 50000L, 100000L, 250000L, 500000L)
+    val quickAmounts = listOf(25000L, 50000L, 100000L, 250000L, 500000L, 1000000L)
     Column(modifier = modifier) {
         Text(
             text = "Pilihan Cepat Nominal:",

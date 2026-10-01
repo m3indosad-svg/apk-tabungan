@@ -3,26 +3,24 @@ package com.example.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import com.example.data.local.AppDatabase
-import com.example.data.local.StudentEntity
+import com.example.data.local.MemberEntity
 import com.example.data.local.TransactionEntity
 import com.example.data.model.AdminModel
 import com.example.data.model.BaseApiResponse
-import com.example.data.model.StudentModel
+import com.example.data.model.MemberModel
 import com.example.data.model.TransactionModel
 import com.example.data.remote.AppsScriptService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.UUID
 
 class SavingsRepository(private val context: Context) {
 
     private val db = AppDatabase.getDatabase(context)
-    private val studentDao = db.studentDao()
+    private val memberDao = db.memberDao()
     private val transactionDao = db.transactionDao()
     private val apiService = AppsScriptService.create()
 
@@ -31,11 +29,13 @@ class SavingsRepository(private val context: Context) {
 
     companion object {
         const val PREF_SCRIPT_URL = "pref_script_url"
+        const val DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxISdAKb-RxI3sKN0fM9XJg8avssFjf2ZS9JZQnGoopT5C1HWQQIdKoWDpoXGGdAl3WCg/exec"
         const val DEFAULT_SPREADSHEET_ID = "1EsBQN3wzedlSWQM5kOINma1V8zK1S51jGhTy7-orwac"
     }
 
     fun getScriptUrl(): String {
-        return prefs.getString(PREF_SCRIPT_URL, "") ?: ""
+        val saved = prefs.getString(PREF_SCRIPT_URL, null)
+        return if (!saved.isNullOrBlank()) saved else DEFAULT_SCRIPT_URL
     }
 
     fun setScriptUrl(url: String) {
@@ -43,13 +43,18 @@ class SavingsRepository(private val context: Context) {
     }
 
     // Flows for Compose UI
-    val allStudents: Flow<List<StudentEntity>> = studentDao.getAllStudents()
+    val allMembers: Flow<List<MemberEntity>> = memberDao.getAllMembers()
+    val allStudents: Flow<List<MemberEntity>> = allMembers
     val allTransactions: Flow<List<TransactionEntity>> = transactionDao.getAllTransactions()
     val pendingWithdrawals: Flow<List<TransactionEntity>> = transactionDao.getPendingWithdrawals()
 
-    fun getStudentFlow(nis: String): Flow<StudentEntity?> = studentDao.getStudentFlow(nis)
+    fun getMemberFlow(noRek: String): Flow<MemberEntity?> = memberDao.getMemberFlow(noRek)
+    fun getStudentFlow(nis: String): Flow<MemberEntity?> = getMemberFlow(nis)
+
+    fun getTransactionsForMember(noRek: String): Flow<List<TransactionEntity>> =
+        transactionDao.getTransactionsForMember(noRek)
     fun getTransactionsForStudent(nis: String): Flow<List<TransactionEntity>> =
-        transactionDao.getTransactionsForStudent(nis)
+        getTransactionsForMember(nis)
 
     /**
      * Recalculates balances and stats based on the exact Google Apps Script business rules:
@@ -59,9 +64,9 @@ class SavingsRepository(private val context: Context) {
      * - DITOLAK -> Diabaikan
      * Saldo = Total Pemasukan - Total Pengeluaran
      */
-    suspend fun recalculateStudentStats(nis: String): StudentEntity? = withContext(Dispatchers.IO) {
-        val student = studentDao.getStudentByNis(nis) ?: return@withContext null
-        val txs = transactionDao.getTransactionsForStudentSync(nis)
+    suspend fun recalculateMemberStats(noRek: String): MemberEntity? = withContext(Dispatchers.IO) {
+        val member = memberDao.getMemberByNoRek(noRek) ?: return@withContext null
+        val txs = transactionDao.getTransactionsForMemberSync(noRek)
 
         var totalPemasukan = 0L
         var totalPengeluaran = 0L
@@ -90,14 +95,22 @@ class SavingsRepository(private val context: Context) {
         }
 
         val saldo = totalPemasukan - totalPengeluaran
-        val updated = student.copy(
+        val updated = member.copy(
             saldo = saldo,
             totalPemasukan = totalPemasukan,
             totalPengeluaran = totalPengeluaran,
             pendingPenarikan = pendingPenarikan
         )
-        studentDao.updateStudent(updated)
+        memberDao.updateMember(updated)
         updated
+    }
+
+    suspend fun recalculateStudentStats(nis: String): MemberEntity? = recalculateMemberStats(nis)
+
+    suspend fun resetDemoData() = withContext(Dispatchers.IO) {
+        memberDao.clearAll()
+        transactionDao.clearAll()
+        AppDatabase.seedInitialData(db)
     }
 
     suspend fun pingBackend(): Result<String> = withContext(Dispatchers.IO) {
@@ -120,7 +133,7 @@ class SavingsRepository(private val context: Context) {
         }
     }
 
-    suspend fun studentLogin(nis: String, pass: String): Result<StudentEntity> = withContext(Dispatchers.IO) {
+    suspend fun memberLogin(noRek: String, pass: String): Result<MemberEntity> = withContext(Dispatchers.IO) {
         val scriptUrl = getScriptUrl()
 
         // If cloud URL is available, try remote login first
@@ -129,27 +142,28 @@ class SavingsRepository(private val context: Context) {
                 val response = apiService.executeAction(
                     url = scriptUrl,
                     action = "login",
-                    nis = nis,
+                    noRek = noRek,
+                    nis = noRek,
                     password = pass
                 )
                 if (response.isSuccessful && response.body()?.status == "success") {
                     val body = response.body()!!
-                    val entity = StudentEntity(
-                        nis = body.nis ?: nis,
-                        nama = body.nama ?: "Siswa $nis",
-                        kelas = body.kelas ?: "",
+                    val entity = MemberEntity(
+                        noRek = body.noRek ?: body.nis ?: noRek,
+                        namaLengkap = body.namaLengkap ?: body.nama ?: "Anggota $noRek",
+                        alamat = body.alamat ?: body.kelas ?: "",
                         password = pass,
                         saldo = body.saldo ?: 0L,
                         totalPemasukan = body.totalPemasukan ?: 0L,
                         totalPengeluaran = body.totalPengeluaran ?: 0L,
                         pendingPenarikan = body.pendingPenarikan ?: 0L
                     )
-                    studentDao.insertStudent(entity)
+                    memberDao.insertMember(entity)
                     // Also fetch transactions
-                    syncTransactionsFromRemote(scriptUrl, nis)
+                    syncTransactionsFromRemote(scriptUrl, noRek)
                     return@withContext Result.success(entity)
                 } else if (response.body()?.status == "error") {
-                    return@withContext Result.failure(Exception(response.body()?.message ?: "Password salah atau NIS tidak terdaftar"))
+                    return@withContext Result.failure(Exception(response.body()?.message ?: "Password salah atau No. Rekening tidak terdaftar"))
                 }
             } catch (e: Exception) {
                 // Network error, fallback to local database
@@ -157,25 +171,27 @@ class SavingsRepository(private val context: Context) {
         }
 
         // Local Room DB check
-        val local = studentDao.getStudentByNis(nis)
+        val local = memberDao.getMemberByNoRek(noRek)
         if (local != null) {
             if (local.password.isBlank() || local.password == pass) {
-                val stats = recalculateStudentStats(nis) ?: local
+                val stats = recalculateMemberStats(noRek) ?: local
                 return@withContext Result.success(stats)
             } else {
-                return@withContext Result.failure(Exception("Password salah!"))
+                return@withContext Result.failure(Exception("Password akun salah!"))
             }
         } else {
-            return@withContext Result.failure(Exception("NIS $nis tidak terdaftar di sistem!"))
+            return@withContext Result.failure(Exception("No. Rekening $noRek tidak terdaftar di sistem!"))
         }
     }
 
-    suspend fun studentRegister(
-        nis: String,
-        nama: String,
-        kelas: String,
+    suspend fun studentLogin(nis: String, pass: String): Result<MemberEntity> = memberLogin(nis, pass)
+
+    suspend fun memberRegister(
+        noRek: String,
+        namaLengkap: String,
+        alamat: String,
         pass: String
-    ): Result<StudentEntity> = withContext(Dispatchers.IO) {
+    ): Result<MemberEntity> = withContext(Dispatchers.IO) {
         val scriptUrl = getScriptUrl()
 
         if (scriptUrl.isNotBlank()) {
@@ -183,16 +199,19 @@ class SavingsRepository(private val context: Context) {
                 val response = apiService.executeAction(
                     url = scriptUrl,
                     action = "register",
-                    nis = nis,
-                    nama = nama,
-                    kelas = kelas,
+                    noRek = noRek,
+                    nis = noRek,
+                    namaLengkap = namaLengkap,
+                    nama = namaLengkap,
+                    alamat = alamat,
+                    kelas = alamat,
                     password = pass
                 )
                 if (response.isSuccessful && response.body()?.status == "success") {
-                    val entity = StudentEntity(
-                        nis = nis,
-                        nama = nama,
-                        kelas = kelas,
+                    val entity = MemberEntity(
+                        noRek = noRek,
+                        namaLengkap = namaLengkap,
+                        alamat = alamat,
                         password = pass,
                         saldo = 0L,
                         totalPemasukan = 0L,
@@ -200,10 +219,10 @@ class SavingsRepository(private val context: Context) {
                         pendingPenarikan = 0L,
                         tanggalDaftar = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
                     )
-                    studentDao.insertStudent(entity)
+                    memberDao.insertMember(entity)
                     return@withContext Result.success(entity)
                 } else if (response.body()?.status == "error") {
-                    return@withContext Result.failure(Exception(response.body()?.message ?: "Registrasi gagal"))
+                    return@withContext Result.failure(Exception(response.body()?.message ?: "Registrasi anggota gagal"))
                 }
             } catch (e: Exception) {
                 // fall through to local
@@ -211,15 +230,15 @@ class SavingsRepository(private val context: Context) {
         }
 
         // Local Room
-        val existing = studentDao.getStudentByNis(nis)
+        val existing = memberDao.getMemberByNoRek(noRek)
         if (existing != null) {
-            return@withContext Result.failure(Exception("NIS $nis sudah terdaftar!"))
+            return@withContext Result.failure(Exception("No. Rekening $noRek sudah terdaftar!"))
         }
 
-        val newStudent = StudentEntity(
-            nis = nis,
-            nama = nama,
-            kelas = kelas,
+        val newMember = MemberEntity(
+            noRek = noRek,
+            namaLengkap = namaLengkap,
+            alamat = alamat,
             password = pass,
             saldo = 0L,
             totalPemasukan = 0L,
@@ -227,9 +246,16 @@ class SavingsRepository(private val context: Context) {
             pendingPenarikan = 0L,
             tanggalDaftar = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         )
-        studentDao.insertStudent(newStudent)
-        Result.success(newStudent)
+        memberDao.insertMember(newMember)
+        Result.success(newMember)
     }
+
+    suspend fun studentRegister(
+        nis: String,
+        nama: String,
+        kelas: String,
+        pass: String
+    ): Result<MemberEntity> = memberRegister(nis, nama, kelas, pass)
 
     suspend fun adminLogin(username: String, pass: String): Result<AdminModel> = withContext(Dispatchers.IO) {
         val scriptUrl = getScriptUrl()
@@ -245,13 +271,13 @@ class SavingsRepository(private val context: Context) {
                 if (response.isSuccessful && response.body()?.status == "success") {
                     val admin = response.body()?.admin ?: AdminModel(
                         username = username,
-                        nama = "Admin Tabungan",
+                        nama = "Pengurus Tabungan",
                         role = "Administrator"
                     )
                     syncAdminDashboardFromRemote(scriptUrl)
                     return@withContext Result.success(admin)
                 } else if (response.body()?.status == "error") {
-                    return@withContext Result.failure(Exception(response.body()?.message ?: "Login Admin gagal"))
+                    return@withContext Result.failure(Exception(response.body()?.message ?: "Login Pengurus gagal"))
                 }
             } catch (e: Exception) {
                 // fallback to local
@@ -260,10 +286,11 @@ class SavingsRepository(private val context: Context) {
 
         // Local Admin credentials verification
         if ((username.equals("admin", ignoreCase = true) && pass == "admin123") ||
-            (username.equals("kepala", ignoreCase = true) && pass == "admin123")) {
+            (username.equals("pengurus", ignoreCase = true) && pass == "admin123") ||
+            (username.equals("ketua", ignoreCase = true) && pass == "admin123")) {
             val admin = AdminModel(
                 username = username,
-                nama = if (username.equals("kepala", ignoreCase = true)) "Kepala Administrasi" else "Administrator Tabungan",
+                nama = if (username.equals("ketua", ignoreCase = true)) "Ketua Pengurus" else "Pengurus Tabungan",
                 role = "Super Admin"
             )
             return@withContext Result.success(admin)
@@ -273,7 +300,7 @@ class SavingsRepository(private val context: Context) {
     }
 
     suspend fun addTransaction(
-        nis: String,
+        noRek: String,
         tipe: String, // "Setoran" or "Penarikan"
         nominal: Long,
         keterangan: String,
@@ -283,22 +310,22 @@ class SavingsRepository(private val context: Context) {
             return@withContext Result.failure(Exception("Nominal transaksi harus lebih dari Rp 0!"))
         }
 
-        val student = studentDao.getStudentByNis(nis)
-            ?: return@withContext Result.failure(Exception("Data siswa NIS $nis tidak ditemukan!"))
+        val member = memberDao.getMemberByNoRek(noRek)
+            ?: return@withContext Result.failure(Exception("Data anggota No. Rekening $noRek tidak ditemukan!"))
 
         val isTarik = tipe.equals("Penarikan", ignoreCase = true) || tipe.contains("tarik", ignoreCase = true)
         val normalizedType = if (isTarik) "Penarikan" else "Setoran"
 
         // Check balance for withdrawal
-        if (isTarik && nominal > student.saldo) {
+        if (isTarik && nominal > member.saldo) {
             return@withContext Result.failure(
                 Exception("Saldo Anda tidak mencukupi untuk melakukan penarikan Rp %,d! Saldo saat ini: Rp %,d"
-                    .format(nominal, student.saldo).replace(',', '.'))
+                    .format(nominal, member.saldo).replace(',', '.'))
             )
         }
 
         val initialStatus = if (isTarik) "PENDING" else "DISETUJUI"
-        val initialNote = if (isTarik) "Menunggu ACC Admin" else "Otomatis Disetujui"
+        val initialNote = if (isTarik) "Menunggu ACC Pengurus" else "Otomatis Disetujui"
         val txId = "TX-" + SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault()).format(Date()) +
                 "-" + (100..999).random()
 
@@ -308,7 +335,8 @@ class SavingsRepository(private val context: Context) {
                 val response = apiService.executeAction(
                     url = scriptUrl,
                     action = "addtransaction",
-                    nis = nis,
+                    noRek = noRek,
+                    nis = noRek,
                     tipe = normalizedType,
                     nominal = nominal,
                     keterangan = keterangan,
@@ -317,10 +345,10 @@ class SavingsRepository(private val context: Context) {
                 )
                 if (response.isSuccessful && response.body()?.status == "success") {
                     val entity = TransactionEntity(
-                        id = response.body()?.nis ?: txId,
-                        nis = nis,
-                        namaSiswa = student.nama,
-                        kelasSiswa = student.kelas,
+                        id = response.body()?.noRek ?: response.body()?.nis ?: txId,
+                        noRek = noRek,
+                        namaAnggota = member.namaLengkap,
+                        alamatAnggota = member.alamat,
                         tipe = normalizedType,
                         nominal = nominal,
                         keterangan = keterangan,
@@ -330,7 +358,7 @@ class SavingsRepository(private val context: Context) {
                         timestamp = System.currentTimeMillis()
                     )
                     transactionDao.insertTransaction(entity)
-                    recalculateStudentStats(nis)
+                    recalculateMemberStats(noRek)
                     return@withContext Result.success(entity)
                 }
             } catch (e: Exception) {
@@ -341,9 +369,9 @@ class SavingsRepository(private val context: Context) {
         // Local Room persistence
         val entity = TransactionEntity(
             id = txId,
-            nis = nis,
-            namaSiswa = student.nama,
-            kelasSiswa = student.kelas,
+            noRek = noRek,
+            namaAnggota = member.namaLengkap,
+            alamatAnggota = member.alamat,
             tipe = normalizedType,
             nominal = nominal,
             keterangan = keterangan,
@@ -353,14 +381,14 @@ class SavingsRepository(private val context: Context) {
             timestamp = System.currentTimeMillis()
         )
         transactionDao.insertTransaction(entity)
-        recalculateStudentStats(nis)
+        recalculateMemberStats(noRek)
         Result.success(entity)
     }
 
     suspend fun approveWithdrawal(
         txId: String,
-        nis: String,
-        adminNote: String = "Disetujui Admin"
+        noRek: String,
+        adminNote: String = "Disetujui Pengurus"
     ): Result<String> = withContext(Dispatchers.IO) {
         val scriptUrl = getScriptUrl()
         if (scriptUrl.isNotBlank()) {
@@ -369,11 +397,12 @@ class SavingsRepository(private val context: Context) {
                     url = scriptUrl,
                     action = "approvewithdrawal",
                     id = txId,
-                    nis = nis,
+                    noRek = noRek,
+                    nis = noRek,
                     adminNote = adminNote
                 )
                 if (response.isSuccessful && response.body()?.status == "success") {
-                    updateLocalTxStatus(txId, nis, "DISETUJUI", adminNote)
+                    updateLocalTxStatus(txId, noRek, "DISETUJUI", adminNote)
                     return@withContext Result.success(response.body()?.message ?: "Penarikan berhasil disetujui (ACC)!")
                 }
             } catch (e: Exception) {
@@ -381,13 +410,13 @@ class SavingsRepository(private val context: Context) {
             }
         }
 
-        updateLocalTxStatus(txId, nis, "DISETUJUI", adminNote)
-        Result.success("Penarikan berhasil disetujui (ACC)! Saldo siswa telah resmi dikurangi.")
+        updateLocalTxStatus(txId, noRek, "DISETUJUI", adminNote)
+        Result.success("Penarikan berhasil disetujui (ACC)! Saldo anggota telah resmi dikurangi.")
     }
 
     suspend fun rejectWithdrawal(
         txId: String,
-        nis: String,
+        noRek: String,
         reason: String
     ): Result<String> = withContext(Dispatchers.IO) {
         val scriptUrl = getScriptUrl()
@@ -397,11 +426,12 @@ class SavingsRepository(private val context: Context) {
                     url = scriptUrl,
                     action = "rejectwithdrawal",
                     id = txId,
-                    nis = nis,
+                    noRek = noRek,
+                    nis = noRek,
                     reason = reason
                 )
                 if (response.isSuccessful && response.body()?.status == "success") {
-                    updateLocalTxStatus(txId, nis, "DITOLAK", reason)
+                    updateLocalTxStatus(txId, noRek, "DITOLAK", reason)
                     return@withContext Result.success(response.body()?.message ?: "Penarikan telah ditolak.")
                 }
             } catch (e: Exception) {
@@ -409,13 +439,13 @@ class SavingsRepository(private val context: Context) {
             }
         }
 
-        updateLocalTxStatus(txId, nis, "DITOLAK", reason)
-        Result.success("Penarikan telah ditolak. Saldo siswa tidak berkurang.")
+        updateLocalTxStatus(txId, noRek, "DITOLAK", reason)
+        Result.success("Penarikan telah ditolak. Saldo anggota tidak berkurang.")
     }
 
     private suspend fun updateLocalTxStatus(
         txId: String,
-        nis: String,
+        noRek: String,
         status: String,
         note: String
     ) {
@@ -426,76 +456,97 @@ class SavingsRepository(private val context: Context) {
                 catatanAdmin = note
             )
             transactionDao.updateTransaction(updated)
-            recalculateStudentStats(tx.nis)
+            recalculateMemberStats(tx.noRek)
         } else {
-            recalculateStudentStats(nis)
+            recalculateMemberStats(noRek)
         }
     }
 
-    private suspend fun syncTransactionsFromRemote(scriptUrl: String, nis: String) {
+    private suspend fun syncTransactionsFromRemote(scriptUrl: String, noRek: String) {
         try {
             val response = apiService.executeAction(
                 url = scriptUrl,
                 action = "gettransactions",
-                nis = nis
+                noRek = noRek,
+                nis = noRek
             )
             if (response.isSuccessful && response.body()?.status == "success") {
                 val list = response.body()?.data ?: emptyList()
                 val entities = list.map { it.toEntity() }
                 transactionDao.insertAll(entities)
-                recalculateStudentStats(nis)
+                recalculateMemberStats(noRek)
             }
         } catch (ignored: Exception) {}
     }
 
-    private suspend fun syncAdminDashboardFromRemote(scriptUrl: String) {
+    suspend fun syncAdminDashboardFromRemote(scriptUrl: String) = withContext(Dispatchers.IO) {
         try {
-            val response = apiService.executeAction(
-                url = scriptUrl,
-                action = "getadmindashboard"
-            )
+            val response = apiService.executeAction(url = scriptUrl, action = "admindashboard")
             if (response.isSuccessful && response.body()?.status == "success") {
-                val students = response.body()?.students ?: emptyList()
-                val txs = response.body()?.transactions ?: emptyList()
+                val body = response.body()!!
 
-                val studentEntities = students.map {
-                    StudentEntity(
-                        nis = it.nis,
-                        nama = it.nama,
-                        kelas = it.kelas,
-                        saldo = it.saldo,
-                        totalPemasukan = it.totalPemasukan,
-                        totalPengeluaran = it.totalPengeluaran,
-                        pendingPenarikan = it.pendingPenarikan
-                    )
+                // Sync members list
+                val memberModels = body.members ?: body.students ?: emptyList()
+                if (memberModels.isNotEmpty()) {
+                    val entities = memberModels.map { m ->
+                        val targetRek = m.noRek.ifBlank { m.nis }
+                        val targetNama = m.namaLengkap.ifBlank { m.nama }
+                        val targetAlamat = m.alamat.ifBlank { m.kelas }
+                        val existing = memberDao.getMemberByNoRek(targetRek)
+                        MemberEntity(
+                            noRek = targetRek,
+                            namaLengkap = targetNama,
+                            alamat = targetAlamat,
+                            password = existing?.password ?: "123456",
+                            saldo = m.saldo,
+                            totalPemasukan = m.totalPemasukan,
+                            totalPengeluaran = m.totalPengeluaran,
+                            pendingPenarikan = m.pendingPenarikan,
+                            tanggalDaftar = existing?.tanggalDaftar ?: "2026-09-01"
+                        )
+                    }
+                    memberDao.insertAll(entities)
                 }
-                studentDao.insertAll(studentEntities)
 
-                val txEntities = txs.map { it.toEntity() }
-                transactionDao.insertAll(txEntities)
+                // Sync all transactions
+                val txModels = body.transactions ?: emptyList()
+                if (txModels.isNotEmpty()) {
+                    val entities = txModels.map { it.toEntity() }
+                    transactionDao.insertAll(entities)
+                }
+
+                // Recalculate
+                val allList = memberDao.getStudentByNis("10012026")
+                memberModels.forEach {
+                    recalculateMemberStats(it.noRek.ifBlank { it.nis })
+                }
             }
         } catch (ignored: Exception) {}
-    }
-
-    suspend fun resetDemoData() = withContext(Dispatchers.IO) {
-        studentDao.clearAll()
-        transactionDao.clearAll()
-        AppDatabase.seedInitialData(db)
     }
 
     private fun TransactionModel.toEntity(): TransactionEntity {
+        val recNoRek = noRek.ifBlank { nis }
+        val recNama = namaAnggota.ifBlank { namaSiswa }
+        val recAlamat = alamatAnggota.ifBlank { kelasSiswa }
         return TransactionEntity(
-            id = id.ifBlank { "TX-${System.currentTimeMillis()}-${(100..999).random()}" },
-            nis = nis,
-            namaSiswa = namaSiswa,
-            kelasSiswa = kelasSiswa,
-            tipe = if (tipe.contains("tarik", ignoreCase = true)) "Penarikan" else "Setoran",
+            id = id.ifBlank { "TX-${System.currentTimeMillis()}" },
+            noRek = recNoRek,
+            namaAnggota = recNama,
+            alamatAnggota = recAlamat,
+            tipe = tipe,
             nominal = nominal,
             keterangan = keterangan,
-            tanggal = tanggal,
-            status = status.uppercase(Locale.getDefault()),
+            tanggal = tanggal.ifBlank {
+                SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            },
+            status = status,
             catatanAdmin = catatanAdmin,
-            timestamp = System.currentTimeMillis()
+            timestamp = try {
+                SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(tanggal)?.time
+                    ?: System.currentTimeMillis()
+            } catch (e: Exception) {
+                System.currentTimeMillis()
+            }
         )
     }
 }

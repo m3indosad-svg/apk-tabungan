@@ -17,9 +17,12 @@ interface AppsScriptService {
     suspend fun executeAction(
         @Url url: String,
         @Query("action") action: String,
+        @Query("noRek") noRek: String? = null,
         @Query("nis") nis: String? = null,
         @Query("password") password: String? = null,
+        @Query("namaLengkap") namaLengkap: String? = null,
         @Query("nama") nama: String? = null,
+        @Query("alamat") alamat: String? = null,
         @Query("kelas") kelas: String? = null,
         @Query("username") username: String? = null,
         @Query("tipe") tipe: String? = null,

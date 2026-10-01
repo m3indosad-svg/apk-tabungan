@@ -3,7 +3,7 @@ package com.example.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.data.local.StudentEntity
+import com.example.data.local.MemberEntity
 import com.example.data.local.TransactionEntity
 import com.example.data.model.AdminModel
 import com.example.data.repository.SavingsRepository
@@ -11,7 +11,11 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 enum class UserRole {
-    NONE, SISWA, ADMIN
+    NONE, ANGGOTA, ADMIN;
+
+    companion object {
+        val SISWA = ANGGOTA // Compatibility
+    }
 }
 
 class SavingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -22,8 +26,9 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
     private val _userRole = MutableStateFlow(UserRole.NONE)
     val userRole: StateFlow<UserRole> = _userRole.asStateFlow()
 
-    private val _currentNis = MutableStateFlow<String?>(null)
-    val currentNis: StateFlow<String?> = _currentNis.asStateFlow()
+    private val _currentNoRek = MutableStateFlow<String?>(null)
+    val currentNoRek: StateFlow<String?> = _currentNoRek.asStateFlow()
+    val currentNis: StateFlow<String?> get() = currentNoRek
 
     private val _currentAdmin = MutableStateFlow<AdminModel?>(null)
     val currentAdmin: StateFlow<AdminModel?> = _currentAdmin.asStateFlow()
@@ -35,8 +40,9 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
     val snackBarMessage: StateFlow<String?> = _snackBarMessage.asStateFlow()
 
     // Flows
-    val allStudents: StateFlow<List<StudentEntity>> = repository.allStudents
+    val allMembers: StateFlow<List<MemberEntity>> = repository.allMembers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val allStudents: StateFlow<List<MemberEntity>> get() = allMembers
 
     val allTransactions: StateFlow<List<TransactionEntity>> = repository.allTransactions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -44,19 +50,21 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
     val pendingWithdrawals: StateFlow<List<TransactionEntity>> = repository.pendingWithdrawals
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Student specific observation
-    val currentStudent: StateFlow<StudentEntity?> = _currentNis
-        .flatMapLatest { nis ->
-            if (nis != null) repository.getStudentFlow(nis) else flowOf(null)
+    // Member specific observation
+    val currentMember: StateFlow<MemberEntity?> = _currentNoRek
+        .flatMapLatest { noRek ->
+            if (noRek != null) repository.getMemberFlow(noRek) else flowOf(null)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val currentStudent: StateFlow<MemberEntity?> get() = currentMember
 
-    val currentStudentTransactions: StateFlow<List<TransactionEntity>> = _currentNis
-        .flatMapLatest { nis ->
-            if (nis != null) repository.getTransactionsForStudent(nis) else flowOf(emptyList())
+    val currentMemberTransactions: StateFlow<List<TransactionEntity>> = _currentNoRek
+        .flatMapLatest { noRek ->
+            if (noRek != null) repository.getTransactionsForMember(noRek) else flowOf(emptyList())
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val currentStudentTransactions: StateFlow<List<TransactionEntity>> get() = currentMemberTransactions
 
-    // Admin total calculation (Kas Bersih Sekolah)
-    val totalKasSekolah: StateFlow<Long> = allTransactions.map { txList ->
+    // Total Kas Bersih Tabungan Anggota
+    val totalKasTabungan: StateFlow<Long> = allTransactions.map { txList ->
         var masuk = 0L
         var keluar = 0L
         for (tx in txList) {
@@ -73,12 +81,13 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         }
         masuk - keluar
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+    val totalKasSekolah: StateFlow<Long> get() = totalKasTabungan
 
     init {
-        // Automatically ensure initial data is fresh
+        // Fresh initial calculations
         viewModelScope.launch {
-            repository.allStudents.firstOrNull()?.firstOrNull()?.let {
-                repository.recalculateStudentStats(it.nis)
+            repository.allMembers.firstOrNull()?.firstOrNull()?.let {
+                repository.recalculateMemberStats(it.noRek)
             }
         }
     }
@@ -91,43 +100,53 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         _snackBarMessage.value = msg
     }
 
-    fun loginStudent(nis: String, pass: String, onSuccess: () -> Unit = {}) {
+    fun loginMember(noRek: String, pass: String, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             _isLoading.value = true
-            val result = repository.studentLogin(nis.trim(), pass.trim())
+            val result = repository.memberLogin(noRek.trim(), pass.trim())
             _isLoading.value = false
             result.onSuccess {
-                _currentNis.value = it.nis
-                _userRole.value = UserRole.SISWA
-                showMessage("Selamat datang, ${it.nama}!")
+                _currentNoRek.value = it.noRek
+                _userRole.value = UserRole.ANGGOTA
+                _snackBarMessage.value = "Selamat datang, ${it.namaLengkap}!"
                 onSuccess()
             }.onFailure {
-                showMessage(it.message ?: "Login gagal")
+                _snackBarMessage.value = it.message ?: "Login gagal"
             }
         }
     }
 
-    fun registerStudent(
-        nis: String,
-        nama: String,
-        kelas: String,
+    fun loginStudent(nis: String, pass: String, onSuccess: () -> Unit = {}) = loginMember(nis, pass, onSuccess)
+
+    fun registerMember(
+        noRek: String,
+        namaLengkap: String,
+        alamat: String,
         pass: String,
         onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch {
             _isLoading.value = true
-            val result = repository.studentRegister(nis.trim(), nama.trim(), kelas.trim(), pass.trim())
+            val result = repository.memberRegister(
+                noRek = noRek.trim(),
+                namaLengkap = namaLengkap.trim(),
+                alamat = alamat.trim(),
+                pass = pass.trim()
+            )
             _isLoading.value = false
             result.onSuccess {
-                _currentNis.value = it.nis
-                _userRole.value = UserRole.SISWA
-                showMessage("Pendaftaran berhasil! Selamat datang, ${it.nama}")
+                _currentNoRek.value = it.noRek
+                _userRole.value = UserRole.ANGGOTA
+                _snackBarMessage.value = "Akun Anggota ${it.namaLengkap} berhasil didaftarkan!"
                 onSuccess()
             }.onFailure {
-                showMessage(it.message ?: "Pendaftaran gagal")
+                _snackBarMessage.value = it.message ?: "Registrasi gagal"
             }
         }
     }
+
+    fun registerStudent(nis: String, nama: String, kelas: String, pass: String, onSuccess: () -> Unit = {}) =
+        registerMember(nis, nama, kelas, pass, onSuccess)
 
     fun loginAdmin(username: String, pass: String, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
@@ -137,118 +156,148 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
             result.onSuccess {
                 _currentAdmin.value = it
                 _userRole.value = UserRole.ADMIN
-                showMessage("Login Admin berhasil. Selamat bertugas!")
+                _snackBarMessage.value = "Berhasil masuk sebagai ${it.nama}"
                 onSuccess()
             }.onFailure {
-                showMessage(it.message ?: "Login Admin gagal")
+                _snackBarMessage.value = it.message ?: "Login admin gagal"
             }
         }
     }
 
-    fun logout() {
-        _userRole.value = UserRole.NONE
-        _currentNis.value = null
-        _currentAdmin.value = null
-        showMessage("Anda telah keluar.")
-    }
-
-    fun submitDeposit(
-        nominal: Long,
-        keterangan: String,
-        customNis: String? = null,
-        onComplete: (Boolean) -> Unit = {}
-    ) {
-        val targetNis = customNis ?: _currentNis.value ?: return
+    fun depositMember(nominal: Long, keterangan: String, onSuccess: () -> Unit = {}) {
+        val noRek = _currentNoRek.value ?: return
         viewModelScope.launch {
             _isLoading.value = true
-            val desc = keterangan.ifBlank { "Setoran Tabungan" }
+            val ket = if (keterangan.isBlank()) "Setoran Tabungan Anggota" else keterangan
             val result = repository.addTransaction(
-                nis = targetNis,
+                noRek = noRek,
                 tipe = "Setoran",
                 nominal = nominal,
-                keterangan = desc
+                keterangan = ket
             )
             _isLoading.value = false
             result.onSuccess {
-                showMessage("Setoran berhasil! Saldo otomatis bertambah.")
-                onComplete(true)
+                _snackBarMessage.value = "Setoran Rp %,d berhasil disimpan dan disetujui!".format(nominal).replace(',', '.')
+                onSuccess()
             }.onFailure {
-                showMessage(it.message ?: "Gagal memproses setoran")
-                onComplete(false)
+                _snackBarMessage.value = it.message ?: "Setoran gagal"
             }
         }
     }
 
-    fun submitWithdrawal(
-        nominal: Long,
-        keterangan: String,
-        customNis: String? = null,
-        onComplete: (Boolean) -> Unit = {}
-    ) {
-        val targetNis = customNis ?: _currentNis.value ?: return
+    fun depositStudent(nominal: Long, keterangan: String, onSuccess: () -> Unit = {}) = depositMember(nominal, keterangan, onSuccess)
+
+    fun withdrawMember(nominal: Long, keterangan: String, onSuccess: () -> Unit = {}) {
+        val noRek = _currentNoRek.value ?: return
         viewModelScope.launch {
             _isLoading.value = true
-            val desc = keterangan.ifBlank { "Penarikan Saldo" }
+            val ket = if (keterangan.isBlank()) "Penarikan Tabungan Anggota" else keterangan
             val result = repository.addTransaction(
-                nis = targetNis,
+                noRek = noRek,
                 tipe = "Penarikan",
                 nominal = nominal,
-                keterangan = desc
+                keterangan = ket
             )
             _isLoading.value = false
             result.onSuccess {
-                showMessage("Pengajuan penarikan dikirim! Menunggu ACC Admin.")
-                onComplete(true)
+                _snackBarMessage.value = "Permohonan penarikan Rp %,d terkirim. Menunggu persetujuan Pengurus (ACC)."
+                    .format(nominal).replace(',', '.')
+                onSuccess()
             }.onFailure {
-                showMessage(it.message ?: "Gagal memproses penarikan")
-                onComplete(false)
+                _snackBarMessage.value = it.message ?: "Penarikan gagal"
             }
         }
     }
 
-    fun approveWithdrawal(txId: String, nis: String, adminNote: String) {
+    fun withdrawStudent(nominal: Long, keterangan: String, onSuccess: () -> Unit = {}) = withdrawMember(nominal, keterangan, onSuccess)
+
+    fun adminDepositForMember(noRek: String, nominal: Long, keterangan: String, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             _isLoading.value = true
-            val result = repository.approveWithdrawal(txId, nis, adminNote.ifBlank { "Disetujui Admin" })
+            val ket = if (keterangan.isBlank()) "Setoran Langsung via Pengurus" else keterangan
+            val result = repository.addTransaction(
+                noRek = noRek,
+                tipe = "Setoran",
+                nominal = nominal,
+                keterangan = ket
+            )
             _isLoading.value = false
             result.onSuccess {
-                showMessage("Penarikan disetujui (ACC)! Saldo siswa telah dipotong.")
+                _snackBarMessage.value = "Setoran Rp %,d untuk No. Rek $noRek berhasil disetujui!".format(nominal).replace(',', '.')
+                onSuccess()
             }.onFailure {
-                showMessage(it.message ?: "Gagal menyetujui penarikan")
+                _snackBarMessage.value = it.message ?: "Setoran gagal"
             }
         }
     }
 
-    fun rejectWithdrawal(txId: String, nis: String, reason: String) {
+    fun adminDepositForStudent(nis: String, nominal: Long, keterangan: String, onSuccess: () -> Unit = {}) =
+        adminDepositForMember(nis, nominal, keterangan, onSuccess)
+
+    fun adminWithdrawForMember(noRek: String, nominal: Long, keterangan: String, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             _isLoading.value = true
-            val result = repository.rejectWithdrawal(txId, nis, reason.ifBlank { "Ditolak oleh Admin" })
+            val ket = if (keterangan.isBlank()) "Penarikan Langsung via Pengurus" else keterangan
+            val result = repository.addTransaction(
+                noRek = noRek,
+                tipe = "Penarikan",
+                nominal = nominal,
+                keterangan = ket
+            )
             _isLoading.value = false
             result.onSuccess {
-                showMessage("Penarikan ditolak. Saldo siswa tidak berkurang.")
+                // Auto approve because performed by Admin
+                repository.approveWithdrawal(it.id, noRek, "Penarikan Langsung oleh Pengurus")
+                _snackBarMessage.value = "Penarikan Rp %,d untuk No. Rek $noRek berhasil diproses!".format(nominal).replace(',', '.')
+                onSuccess()
             }.onFailure {
-                showMessage(it.message ?: "Gagal menolak penarikan")
+                _snackBarMessage.value = it.message ?: "Penarikan gagal"
             }
         }
     }
 
-    fun getScriptUrl(): String = repository.getScriptUrl()
+    fun adminWithdrawForStudent(nis: String, nominal: Long, keterangan: String, onSuccess: () -> Unit = {}) =
+        adminWithdrawForMember(nis, nominal, keterangan, onSuccess)
 
-    fun saveScriptUrl(url: String) {
-        repository.setScriptUrl(url)
-        showMessage("Pengaturan URL Web App disimpan.")
-    }
-
-    fun pingBackend(onResult: (Boolean, String) -> Unit) {
+    fun approveWithdrawal(txId: String, noRek: String, adminNote: String = "Disetujui Pengurus") {
         viewModelScope.launch {
             _isLoading.value = true
-            val result = repository.pingBackend()
+            val result = repository.approveWithdrawal(txId, noRek, adminNote)
             _isLoading.value = false
             result.onSuccess {
-                onResult(true, it)
+                _snackBarMessage.value = it
             }.onFailure {
-                onResult(false, it.message ?: "Koneksi gagal")
+                _snackBarMessage.value = it.message ?: "Gagal menyetujui transaksi"
             }
+        }
+    }
+
+    fun rejectWithdrawal(txId: String, noRek: String, reason: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val result = repository.rejectWithdrawal(txId, noRek, reason)
+            _isLoading.value = false
+            result.onSuccess {
+                _snackBarMessage.value = it
+            }.onFailure {
+                _snackBarMessage.value = it.message ?: "Gagal menolak transaksi"
+            }
+        }
+    }
+
+    fun submitDeposit(amount: Long, desc: String, noRek: String? = null) {
+        if (noRek != null) {
+            adminDepositForMember(noRek, amount, desc)
+        } else {
+            depositMember(amount, desc)
+        }
+    }
+
+    fun submitWithdrawal(amount: Long, desc: String, noRek: String? = null) {
+        if (noRek != null) {
+            adminWithdrawForMember(noRek, amount, desc)
+        } else {
+            withdrawMember(amount, desc)
         }
     }
 
@@ -257,7 +306,40 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
             _isLoading.value = true
             repository.resetDemoData()
             _isLoading.value = false
-            showMessage("Data contoh berhasil di-reset ke kondisi awal!")
+            _snackBarMessage.value = "Data demo tabungan berhasil di-reset ke awal."
         }
+    }
+
+    fun pingBackend(onResult: (Boolean, String) -> Unit) {
+        testPing { msg, success ->
+            onResult(success, msg)
+        }
+    }
+
+    fun testPing(onResult: (String, Boolean) -> Unit) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val result = repository.pingBackend()
+            _isLoading.value = false
+            result.onSuccess {
+                onResult(it, true)
+            }.onFailure {
+                onResult(it.message ?: "Gagal ping backend", false)
+            }
+        }
+    }
+
+    fun getScriptUrl(): String = repository.getScriptUrl()
+
+    fun saveScriptUrl(url: String) {
+        repository.setScriptUrl(url)
+        _snackBarMessage.value = "URL Web App Google Apps Script berhasil disimpan"
+    }
+
+    fun logout() {
+        _userRole.value = UserRole.NONE
+        _currentNoRek.value = null
+        _currentAdmin.value = null
+        _snackBarMessage.value = "Berhasil keluar"
     }
 }

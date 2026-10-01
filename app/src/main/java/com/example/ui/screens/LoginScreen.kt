@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,31 +27,38 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.example.R
-import com.example.ui.theme.PrimaryNavy
-import com.example.ui.theme.SecondaryTeal
+import com.example.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
-    onLoginStudent: (String, String) -> Unit,
-    onRegisterStudent: (String, String, String, String) -> Unit,
+    isLoading: Boolean,
+    onLoginMember: (String, String) -> Unit,
+    onRegisterMember: (String, String, String, String) -> Unit,
     onLoginAdmin: (String, String) -> Unit,
     onOpenSettings: () -> Unit,
-    isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: Siswa, 1: Admin
-    var nisInput by remember { mutableStateOf("2026101") }
-    var studentPasswordInput by remember { mutableStateOf("123456") }
-    var isStudentPasswordVisible by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Anggota, 1: Pengurus/Admin
+    var isRegisterMode by remember { mutableStateOf(false) }
 
+    // Anggota Form State
+    var noRekInput by remember { mutableStateOf("10012026") }
+    var passwordInput by remember { mutableStateOf("123456") }
+    var isPasswordVisible by remember { mutableStateOf(false) }
+
+    // Register State
+    var regNoRek by remember { mutableStateOf("") }
+    var regNamaLengkap by remember { mutableStateOf("") }
+    var regAlamat by remember { mutableStateOf("") }
+    var regPassword by remember { mutableStateOf("") }
+    var isRegPasswordVisible by remember { mutableStateOf(false) }
+
+    // Admin Form State
     var adminUsernameInput by remember { mutableStateOf("admin") }
     var adminPasswordInput by remember { mutableStateOf("admin123") }
     var isAdminPasswordVisible by remember { mutableStateOf(false) }
-
-    var showRegisterDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -58,30 +66,30 @@ fun LoginScreen(
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(36.dp)
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(34.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = Icons.Default.Savings,
+                                    imageVector = Icons.Default.AccountBalance,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
                         Column {
                             Text(
-                                text = "Tabungan Siswa",
+                                text = "Tabungan Anggota",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp
+                                fontSize = 16.sp
                             )
                             Text(
-                                text = "Sistem Kas & ACC Penarikan",
+                                text = "Koperasi & Komunitas",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -89,14 +97,20 @@ fun LoginScreen(
                     }
                 },
                 actions = {
-                    IconButton(
+                    FilledTonalButton(
                         onClick = onOpenSettings,
-                        modifier = Modifier.testTag("settings_top_button")
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .testTag("settings_top_button")
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Pengaturan Backend"
+                            imageVector = Icons.Default.CloudSync,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
                         )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Test Ping", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -125,21 +139,20 @@ fun LoginScreen(
                 Box(modifier = Modifier.fillMaxSize()) {
                     Image(
                         painter = painterResource(id = R.drawable.banner_savings),
-                        contentDescription = "Banner Tabungan Siswa",
+                        contentDescription = "Banner Tabungan Anggota",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(
-                                Color.Black.copy(alpha = 0.35f)
-                            )
+                            .background(Color.Black.copy(alpha = 0.40f))
                     )
                     Column(
                         modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(14.dp)
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.Bottom
                     ) {
                         Surface(
                             color = PrimaryNavy.copy(alpha = 0.85f),
@@ -155,7 +168,7 @@ fun LoginScreen(
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Aman, Transparan & Terintegrasi",
+                            text = "Tabungan Anggota & Koperasi",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -164,7 +177,65 @@ fun LoginScreen(
                 }
             }
 
-            // Tabs for Siswa / Admin
+            // Google Apps Script Cloud Sync Status Card
+            Surface(
+                color = Color(0xFFE8F5E9),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Color(0xFFA5D6A7)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenSettings)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFF2E7D32),
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.CloudDone,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        Column {
+                            Text(
+                                text = "Koneksi Google Apps Script",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color(0xFF1B5E20)
+                            )
+                            Text(
+                                text = "URL Spreadsheet terpasang. Klik untuk Tes Ping.",
+                                fontSize = 11.sp,
+                                color = Color(0xFF2E7D32)
+                            )
+                        }
+                    }
+                    Button(
+                        onClick = onOpenSettings,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Test Ping", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            // Tabs for Anggota / Admin
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -181,8 +252,8 @@ fun LoginScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(Icons.Default.School, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text("Siswa", fontWeight = FontWeight.SemiBold)
+                            Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("Anggota", fontWeight = FontWeight.SemiBold)
                         }
                     },
                     modifier = Modifier
@@ -190,7 +261,7 @@ fun LoginScreen(
                             if (selectedTab == 0) MaterialTheme.colorScheme.primary else Color.Transparent,
                             shape = RoundedCornerShape(12.dp)
                         )
-                        .testTag("tab_siswa"),
+                        .testTag("tab_anggota"),
                     selectedContentColor = MaterialTheme.colorScheme.onPrimary,
                     unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -203,7 +274,7 @@ fun LoginScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(Icons.Default.AdminPanelSettings, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text("Admin Tabungan", fontWeight = FontWeight.SemiBold)
+                            Text("Pengurus / Admin", fontWeight = FontWeight.SemiBold)
                         }
                     },
                     modifier = Modifier
@@ -218,7 +289,7 @@ fun LoginScreen(
             }
 
             if (selectedTab == 0) {
-                // Siswa Form
+                // Anggota Form
                 Card(
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -229,114 +300,218 @@ fun LoginScreen(
                         modifier = Modifier.padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        Text(
-                            text = "Masuk Sebagai Siswa",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-
-                        OutlinedTextField(
-                            value = nisInput,
-                            onValueChange = { nisInput = it },
-                            label = { Text("Nomor Induk Siswa (NIS)") },
-                            leadingIcon = { Icon(Icons.Default.Badge, contentDescription = null) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("student_nis_input")
-                        )
-
-                        OutlinedTextField(
-                            value = studentPasswordInput,
-                            onValueChange = { studentPasswordInput = it },
-                            label = { Text("Kata Sandi") },
-                            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                            trailingIcon = {
-                                IconButton(onClick = { isStudentPasswordVisible = !isStudentPasswordVisible }) {
-                                    Icon(
-                                        imageVector = if (isStudentPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                        contentDescription = null
-                                    )
-                                }
-                            },
-                            visualTransformation = if (isStudentPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("student_pass_input")
-                        )
-
-                        Button(
-                            onClick = {
-                                onLoginStudent(nisInput, studentPasswordInput)
-                            },
-                            enabled = !isLoading && nisInput.isNotBlank(),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp)
-                                .testTag("student_login_button")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    color = MaterialTheme.colorScheme.onPrimary
+                            Text(
+                                text = if (isRegisterMode) "Daftar Anggota Baru" else "Masuk Sebagai Anggota",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                            TextButton(onClick = { isRegisterMode = !isRegisterMode }) {
+                                Text(
+                                    text = if (isRegisterMode) "Sudah ada akun? Masuk" else "+ Buat Rekening Baru",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
                                 )
-                            } else {
-                                Icon(Icons.Default.Login, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Masuk Tabungan", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
                         }
 
-                        // Register button
-                        OutlinedButton(
-                            onClick = { showRegisterDialog = true },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("open_register_button")
-                        ) {
-                            Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Daftar Siswa Baru")
-                        }
-
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                        // Quick Test Accounts
-                        Text(
-                            text = "Akun Contoh Siap Pakai (1-Klik):",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            AssistChip(
-                                onClick = {
-                                    nisInput = "2026101"
-                                    studentPasswordInput = "123456"
-                                },
-                                label = { Text("Ahmad Dani (2026101)", fontSize = 11.sp) },
-                                leadingIcon = { Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                                modifier = Modifier.weight(1f)
+                        if (!isRegisterMode) {
+                            // Login Anggota
+                            OutlinedTextField(
+                                value = noRekInput,
+                                onValueChange = { noRekInput = it },
+                                label = { Text("No. Rekening / No. Anggota") },
+                                placeholder = { Text("Contoh: 10012026") },
+                                leadingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("member_norek_input")
                             )
-                            AssistChip(
-                                onClick = {
-                                    nisInput = "2026102"
-                                    studentPasswordInput = "123456"
+
+                            OutlinedTextField(
+                                value = passwordInput,
+                                onValueChange = { passwordInput = it },
+                                label = { Text("Password Akun") },
+                                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                                trailingIcon = {
+                                    IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                        Icon(
+                                            imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                            contentDescription = null
+                                        )
+                                    }
                                 },
-                                label = { Text("Siti (2026102)", fontSize = 11.sp) },
-                                leadingIcon = { Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                                modifier = Modifier.weight(1f)
+                                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("member_pass_input")
                             )
+
+                            Button(
+                                onClick = {
+                                    onLoginMember(noRekInput, passwordInput)
+                                },
+                                enabled = !isLoading && noRekInput.isNotBlank(),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp)
+                                    .testTag("member_login_button")
+                            ) {
+                                if (isLoading) {
+                                    CircularProgressIndicator(
+                                        color = Color.White,
+                                        modifier = Modifier.size(22.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(Icons.Default.Login, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Masuk Buku Tabungan", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                }
+                            }
+
+                            // Quick test account chips
+                            Text(
+                                text = "Pilihan Cepat Akun Demo (1-Klik):",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = NeutralTextSecondary
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                FilterChip(
+                                    selected = noRekInput == "10012026",
+                                    onClick = {
+                                        noRekInput = "10012026"
+                                        passwordInput = "123456"
+                                    },
+                                    label = { Text("10012026 (Budi H)", fontSize = 11.sp) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                FilterChip(
+                                    selected = noRekInput == "10012027",
+                                    onClick = {
+                                        noRekInput = "10012027"
+                                        passwordInput = "123456"
+                                    },
+                                    label = { Text("10012027 (Siti N)", fontSize = 11.sp) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                FilterChip(
+                                    selected = noRekInput == "10012028",
+                                    onClick = {
+                                        noRekInput = "10012028"
+                                        passwordInput = "123456"
+                                    },
+                                    label = { Text("10012028 (Ahmad S)", fontSize = 11.sp) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                FilterChip(
+                                    selected = noRekInput == "2026101",
+                                    onClick = {
+                                        noRekInput = "2026101"
+                                        passwordInput = "123456"
+                                    },
+                                    label = { Text("2026101 (Ahmad D)", fontSize = 11.sp) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        } else {
+                            // Register Form
+                            OutlinedTextField(
+                                value = regNoRek,
+                                onValueChange = { regNoRek = it },
+                                label = { Text("Nomor Rekening Baru") },
+                                placeholder = { Text("Misal: 10012029") },
+                                leadingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            OutlinedTextField(
+                                value = regNamaLengkap,
+                                onValueChange = { regNamaLengkap = it },
+                                label = { Text("Nama Lengkap Anggota") },
+                                placeholder = { Text("Misal: Hendra Wijaya") },
+                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            OutlinedTextField(
+                                value = regAlamat,
+                                onValueChange = { regAlamat = it },
+                                label = { Text("Alamat Lengkap") },
+                                placeholder = { Text("Misal: Jl. Mawar No. 12, Surabaya") },
+                                leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) },
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            OutlinedTextField(
+                                value = regPassword,
+                                onValueChange = { regPassword = it },
+                                label = { Text("Password Akun Baru") },
+                                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                                trailingIcon = {
+                                    IconButton(onClick = { isRegPasswordVisible = !isRegPasswordVisible }) {
+                                        Icon(
+                                            imageVector = if (isRegPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                            contentDescription = null
+                                        )
+                                    }
+                                },
+                                visualTransformation = if (isRegPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Button(
+                                onClick = {
+                                    onRegisterMember(regNoRek, regNamaLengkap, regAlamat, regPassword)
+                                },
+                                enabled = !isLoading && regNoRek.isNotBlank() && regNamaLengkap.isNotBlank(),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp)
+                            ) {
+                                if (isLoading) {
+                                    CircularProgressIndicator(
+                                        color = Color.White,
+                                        modifier = Modifier.size(22.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(Icons.Default.PersonAdd, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Daftar Anggota Baru", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                }
+                            }
                         }
                     }
                 }
@@ -353,7 +528,7 @@ fun LoginScreen(
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         Text(
-                            text = "Masuk Sebagai Petugas Admin",
+                            text = "Masuk Sebagai Pengurus / Admin",
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -361,7 +536,7 @@ fun LoginScreen(
                         OutlinedTextField(
                             value = adminUsernameInput,
                             onValueChange = { adminUsernameInput = it },
-                            label = { Text("Username Admin") },
+                            label = { Text("Username Pengurus") },
                             leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp),
@@ -373,7 +548,7 @@ fun LoginScreen(
                         OutlinedTextField(
                             value = adminPasswordInput,
                             onValueChange = { adminPasswordInput = it },
-                            label = { Text("Kata Sandi Admin") },
+                            label = { Text("Password Admin") },
                             leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
                             trailingIcon = {
                                 IconButton(onClick = { isAdminPasswordVisible = !isAdminPasswordVisible }) {
@@ -397,8 +572,8 @@ fun LoginScreen(
                                 onLoginAdmin(adminUsernameInput, adminPasswordInput)
                             },
                             enabled = !isLoading && adminUsernameInput.isNotBlank(),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryNavy),
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(50.dp)
@@ -406,156 +581,33 @@ fun LoginScreen(
                         ) {
                             if (isLoading) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    color = Color.White
+                                    color = Color.White,
+                                    modifier = Modifier.size(22.dp),
+                                    strokeWidth = 2.dp
                                 )
                             } else {
-                                Icon(Icons.Default.VerifiedUser, contentDescription = null)
+                                Icon(Icons.Default.Security, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Masuk Panel Admin", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text("Masuk Panel Pengurus", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
                         }
 
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
+                        // Demo chip
                         Text(
-                            text = "Akun Petugas Default:",
-                            fontSize = 12.sp,
+                            text = "Akun Pengurus Bawaan:",
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = NeutralTextSecondary
                         )
-                        AssistChip(
+                        FilterChip(
+                            selected = adminUsernameInput == "admin",
                             onClick = {
                                 adminUsernameInput = "admin"
                                 adminPasswordInput = "admin123"
                             },
-                            label = { Text("Admin Tabungan (admin / admin123)", fontSize = 11.sp) },
-                            leadingIcon = { Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                            modifier = Modifier.fillMaxWidth()
+                            label = { Text("Pengurus Tabungan (admin / admin123)", fontSize = 11.sp) }
                         )
                     }
-                }
-            }
-        }
-    }
-
-    if (showRegisterDialog) {
-        StudentRegisterDialog(
-            onRegister = { nis, nama, kelas, pass ->
-                onRegisterStudent(nis, nama, kelas, pass)
-                showRegisterDialog = false
-            },
-            onDismiss = { showRegisterDialog = false }
-        )
-    }
-}
-
-@Composable
-fun StudentRegisterDialog(
-    onRegister: (String, String, String, String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var nis by remember { mutableStateOf("") }
-    var nama by remember { mutableStateOf("") }
-    var kelas by remember { mutableStateOf("") }
-    var pass by remember { mutableStateOf("") }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(20.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Pendaftaran Siswa Baru",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Tutup")
-                    }
-                }
-
-                HorizontalDivider()
-
-                OutlinedTextField(
-                    value = nis,
-                    onValueChange = { nis = it },
-                    label = { Text("NIS Siswa") },
-                    placeholder = { Text("Contoh: 2026105") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("reg_nis_input")
-                )
-
-                OutlinedTextField(
-                    value = nama,
-                    onValueChange = { nama = it },
-                    label = { Text("Nama Lengkap Siswa") },
-                    placeholder = { Text("Contoh: Rizky Pratama") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("reg_nama_input")
-                )
-
-                OutlinedTextField(
-                    value = kelas,
-                    onValueChange = { kelas = it },
-                    label = { Text("Kelas") },
-                    placeholder = { Text("Contoh: 10 IPA 2") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("reg_kelas_input")
-                )
-
-                OutlinedTextField(
-                    value = pass,
-                    onValueChange = { pass = it },
-                    label = { Text("Kata Sandi") },
-                    placeholder = { Text("Minimal 4 karakter") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("reg_pass_input")
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Button(
-                    onClick = {
-                        if (nis.isNotBlank() && nama.isNotBlank() && kelas.isNotBlank() && pass.isNotBlank()) {
-                            onRegister(nis, nama, kelas, pass)
-                        }
-                    },
-                    enabled = nis.isNotBlank() && nama.isNotBlank() && kelas.isNotBlank() && pass.isNotBlank(),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .testTag("reg_submit_button")
-                ) {
-                    Icon(Icons.Default.Check, contentDescription = null)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Daftar Sekarang", fontWeight = FontWeight.Bold)
                 }
             }
         }

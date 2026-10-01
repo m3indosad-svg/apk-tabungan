@@ -10,12 +10,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [StudentEntity::class, TransactionEntity::class],
+    entities = [MemberEntity::class, TransactionEntity::class],
     version = 1,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
-    abstract fun studentDao(): StudentDao
+    abstract fun memberDao(): MemberDao
+    fun studentDao(): StudentDao = memberDao()
     abstract fun transactionDao(): TransactionDao
 
     companion object {
@@ -27,7 +28,7 @@ abstract class AppDatabase : RoomDatabase() {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "tabungan_siswa.db"
+                    "tabungan_anggota.db"
                 ).addCallback(object : Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)
@@ -42,14 +43,50 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         suspend fun seedInitialData(database: AppDatabase) {
-            val studentDao = database.studentDao()
+            val memberDao = database.memberDao()
             val transactionDao = database.transactionDao()
 
-            // Pre-seed matching the Google Apps Script initial data
-            val defaultStudent1 = StudentEntity(
-                nis = "2026101",
-                nama = "Ahmad Dani",
-                kelas = "12 IPA 1",
+            // Pre-seed sample Anggota data
+            val defaultMember1 = MemberEntity(
+                noRek = "10012026",
+                namaLengkap = "Budi Hartono",
+                alamat = "Jl. Sudirman No. 45, Jakarta Selatan",
+                password = "123456",
+                saldo = 1500000L,
+                totalPemasukan = 1500000L,
+                totalPengeluaran = 0L,
+                pendingPenarikan = 100000L,
+                tanggalDaftar = "2026-09-01"
+            )
+
+            val defaultMember2 = MemberEntity(
+                noRek = "10012027",
+                namaLengkap = "Siti Nurhaliza",
+                alamat = "Komplek Melati Indah Blok B3, Bandung",
+                password = "123456",
+                saldo = 2250000L,
+                totalPemasukan = 2250000L,
+                totalPengeluaran = 0L,
+                pendingPenarikan = 0L,
+                tanggalDaftar = "2026-09-02"
+            )
+
+            val defaultMember3 = MemberEntity(
+                noRek = "10012028",
+                namaLengkap = "Ahmad Supriyadi",
+                alamat = "Dusun Krajan RT 02 / RW 03, Surabaya",
+                password = "123456",
+                saldo = 750000L,
+                totalPemasukan = 900000L,
+                totalPengeluaran = 150000L,
+                pendingPenarikan = 0L,
+                tanggalDaftar = "2026-09-03"
+            )
+
+            val defaultMemberLegacy = MemberEntity(
+                noRek = "2026101",
+                namaLengkap = "Ahmad Dani",
+                alamat = "Jl. Diponegoro No. 88, Semarang",
                 password = "123456",
                 saldo = 500000L,
                 totalPemasukan = 500000L,
@@ -58,41 +95,17 @@ abstract class AppDatabase : RoomDatabase() {
                 tanggalDaftar = "2026-09-01"
             )
 
-            val defaultStudent2 = StudentEntity(
-                nis = "2026102",
-                nama = "Siti Rahmawati",
-                kelas = "12 IPA 2",
-                password = "123456",
-                saldo = 750000L,
-                totalPemasukan = 750000L,
-                totalPengeluaran = 0L,
-                pendingPenarikan = 0L,
-                tanggalDaftar = "2026-09-02"
-            )
-
-            val defaultStudent3 = StudentEntity(
-                nis = "2026103",
-                nama = "Budi Santoso",
-                kelas = "11 IPS 1",
-                password = "123456",
-                saldo = 250000L,
-                totalPemasukan = 300000L,
-                totalPengeluaran = 50000L,
-                pendingPenarikan = 0L,
-                tanggalDaftar = "2026-09-03"
-            )
-
-            studentDao.insertAll(listOf(defaultStudent1, defaultStudent2, defaultStudent3))
+            memberDao.insertAll(listOf(defaultMember1, defaultMember2, defaultMember3, defaultMemberLegacy))
 
             // Initial transactions
             val initialTx1 = TransactionEntity(
-                id = "TX-INIT-001",
-                nis = "2026101",
-                namaSiswa = "Ahmad Dani",
-                kelasSiswa = "12 IPA 1",
+                id = "TX-ANG-001",
+                noRek = "10012026",
+                namaAnggota = "Budi Hartono",
+                alamatAnggota = "Jl. Sudirman No. 45, Jakarta Selatan",
                 tipe = "Setoran",
-                nominal = 500000L,
-                keterangan = "Saldo Awal Pembukaan",
+                nominal = 1500000L,
+                keterangan = "Simpanan Pokok & Wajib Awal",
                 tanggal = "2026-09-01",
                 status = "DISETUJUI",
                 catatanAdmin = "Otomatis Sistem",
@@ -101,26 +114,26 @@ abstract class AppDatabase : RoomDatabase() {
 
             val initialTx2 = TransactionEntity(
                 id = "TX-PENDING-002",
-                nis = "2026101",
-                namaSiswa = "Ahmad Dani",
-                kelasSiswa = "12 IPA 1",
+                noRek = "10012026",
+                namaAnggota = "Budi Hartono",
+                alamatAnggota = "Jl. Sudirman No. 45, Jakarta Selatan",
                 tipe = "Penarikan",
-                nominal = 50000L,
-                keterangan = "Beli Buku Paket Kimia",
+                nominal = 100000L,
+                keterangan = "Penarikan Tabungan Sukarela",
                 tanggal = "2026-09-28",
                 status = "PENDING",
-                catatanAdmin = "Menunggu ACC Admin",
+                catatanAdmin = "Menunggu ACC Pengurus",
                 timestamp = System.currentTimeMillis() - 3600000L * 2
             )
 
             val initialTx3 = TransactionEntity(
-                id = "TX-INIT-003",
-                nis = "2026102",
-                namaSiswa = "Siti Rahmawati",
-                kelasSiswa = "12 IPA 2",
+                id = "TX-ANG-003",
+                noRek = "10012027",
+                namaAnggota = "Siti Nurhaliza",
+                alamatAnggota = "Komplek Melati Indah Blok B3, Bandung",
                 tipe = "Setoran",
-                nominal = 750000L,
-                keterangan = "Setoran Tabungan Mingguan",
+                nominal = 2250000L,
+                keterangan = "Setoran Tabungan Bulanan",
                 tanggal = "2026-09-10",
                 status = "DISETUJUI",
                 catatanAdmin = "Otomatis Sistem",
@@ -128,13 +141,13 @@ abstract class AppDatabase : RoomDatabase() {
             )
 
             val initialTx4 = TransactionEntity(
-                id = "TX-INIT-004",
-                nis = "2026103",
-                namaSiswa = "Budi Santoso",
-                kelasSiswa = "11 IPS 1",
+                id = "TX-ANG-004",
+                noRek = "10012028",
+                namaAnggota = "Ahmad Supriyadi",
+                alamatAnggota = "Dusun Krajan RT 02 / RW 03, Surabaya",
                 tipe = "Setoran",
-                nominal = 300000L,
-                keterangan = "Tabungan Awal Siswa",
+                nominal = 900000L,
+                keterangan = "Setoran Simpanan Anggota",
                 tanggal = "2026-09-15",
                 status = "DISETUJUI",
                 catatanAdmin = "Otomatis Sistem",
@@ -142,16 +155,16 @@ abstract class AppDatabase : RoomDatabase() {
             )
 
             val initialTx5 = TransactionEntity(
-                id = "TX-INIT-005",
-                nis = "2026103",
-                namaSiswa = "Budi Santoso",
-                kelasSiswa = "11 IPS 1",
+                id = "TX-ANG-005",
+                noRek = "10012028",
+                namaAnggota = "Ahmad Supriyadi",
+                alamatAnggota = "Dusun Krajan RT 02 / RW 03, Surabaya",
                 tipe = "Penarikan",
-                nominal = 50000L,
-                keterangan = "Iuran Lomba OSIS",
+                nominal = 150000L,
+                keterangan = "Penarikan Kebutuhan Darurat",
                 tanggal = "2026-09-20",
                 status = "DISETUJUI",
-                catatanAdmin = "Disetujui Admin",
+                catatanAdmin = "Disetujui Pengurus",
                 timestamp = System.currentTimeMillis() - 86400000L
             )
 

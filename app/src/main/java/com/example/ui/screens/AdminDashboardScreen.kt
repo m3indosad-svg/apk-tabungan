@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,7 +23,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.data.local.StudentEntity
+import com.example.data.local.MemberEntity
 import com.example.data.local.TransactionEntity
 import com.example.data.model.AdminModel
 import com.example.ui.components.*
@@ -35,31 +34,31 @@ import com.example.ui.theme.*
 fun AdminDashboardScreen(
     admin: AdminModel?,
     totalKas: Long,
-    allStudents: List<StudentEntity>,
+    allMembers: List<MemberEntity>,
     allTransactions: List<TransactionEntity>,
     pendingWithdrawals: List<TransactionEntity>,
     onApproveWithdrawal: (String, String, String) -> Unit,
     onRejectWithdrawal: (String, String, String) -> Unit,
-    onAdminAddTx: (Long, String, String, Boolean) -> Unit, // amount, desc, nis, isSetoran
+    onAdminAddTx: (Long, String, String, Boolean) -> Unit, // amount, desc, noRek, isSetoran
     onLogout: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: ACC Penarikan, 1: Siswa, 2: Semua Transaksi
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: ACC Penarikan, 1: Anggota, 2: Semua Transaksi
     var selectedTxForApproval by remember { mutableStateOf<TransactionEntity?>(null) }
     var selectedTxForRejection by remember { mutableStateOf<TransactionEntity?>(null) }
-    var selectedStudentForAction by remember { mutableStateOf<StudentEntity?>(null) }
+    var selectedMemberForAction by remember { mutableStateOf<MemberEntity?>(null) }
 
-    var studentSearch by remember { mutableStateOf("") }
+    var memberSearch by remember { mutableStateOf("") }
     var txSearch by remember { mutableStateOf("") }
     var txFilterType by remember { mutableStateOf("Semua") }
 
-    val filteredStudents = remember(allStudents, studentSearch) {
-        if (studentSearch.isBlank()) allStudents else {
-            allStudents.filter {
-                it.nama.contains(studentSearch, ignoreCase = true) ||
-                        it.nis.contains(studentSearch, ignoreCase = true) ||
-                        it.kelas.contains(studentSearch, ignoreCase = true)
+    val filteredMembers = remember(allMembers, memberSearch) {
+        if (memberSearch.isBlank()) allMembers else {
+            allMembers.filter {
+                it.namaLengkap.contains(memberSearch, ignoreCase = true) ||
+                        it.noRek.contains(memberSearch, ignoreCase = true) ||
+                        it.alamat.contains(memberSearch, ignoreCase = true)
             }
         }
     }
@@ -75,8 +74,8 @@ fun AdminDashboardScreen(
                 else -> true
             }
             val matchesSearch = txSearch.isBlank() ||
-                    tx.namaSiswa.contains(txSearch, ignoreCase = true) ||
-                    tx.nis.contains(txSearch, ignoreCase = true) ||
+                    tx.namaAnggota.contains(txSearch, ignoreCase = true) ||
+                    tx.noRek.contains(txSearch, ignoreCase = true) ||
                     tx.id.contains(txSearch, ignoreCase = true) ||
                     tx.keterangan.contains(txSearch, ignoreCase = true)
             matchesType && matchesSearch
@@ -107,12 +106,12 @@ fun AdminDashboardScreen(
                         }
                         Column {
                             Text(
-                                text = "Panel Admin Tabungan",
+                                text = "Panel Pengurus Tabungan",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
                             Text(
-                                text = "${admin?.nama ?: "Administrator"} • ${admin?.role ?: "Super Admin"}",
+                                text = "${admin?.nama ?: "Pengurus"} • ${admin?.role ?: "Administrator"}",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -157,7 +156,7 @@ fun AdminDashboardScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "TOTAL SALDO KAS SEKOLAH",
+                            text = "TOTAL SALDO KAS TABUNGAN",
                             color = Color.White.copy(alpha = 0.8f),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
@@ -168,7 +167,7 @@ fun AdminDashboardScreen(
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
-                                text = "${allStudents.size} Siswa",
+                                text = "${allMembers.size} Anggota",
                                 color = Color.White,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -185,7 +184,7 @@ fun AdminDashboardScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Total Simpanan Bersih Seluruh Siswa Terdaftar",
+                        text = "Total Simpanan Bersih Seluruh Anggota Terdaftar",
                         color = Color.White.copy(alpha = 0.7f),
                         fontSize = 11.sp
                     )
@@ -234,14 +233,14 @@ fun AdminDashboardScreen(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
                     text = {
-                        Text("Daftar Siswa", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        Text("Daftar Anggota", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                     },
                     modifier = Modifier
                         .background(
                             if (selectedTab == 1) MaterialTheme.colorScheme.primary else Color.Transparent,
                             shape = RoundedCornerShape(12.dp)
                         )
-                        .testTag("admin_tab_siswa"),
+                        .testTag("admin_tab_anggota"),
                     selectedContentColor = MaterialTheme.colorScheme.onPrimary,
                     unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -298,7 +297,7 @@ fun AdminDashboardScreen(
                                         fontSize = 16.sp
                                     )
                                     Text(
-                                        text = "Semua permintaan penarikan siswa telah diproses dan disetujui (ACC).",
+                                        text = "Semua permintaan penarikan anggota telah diproses dan disetujui (ACC).",
                                         fontSize = 12.sp,
                                         color = NeutralTextSecondary
                                     )
@@ -325,7 +324,7 @@ fun AdminDashboardScreen(
                                     ) {
                                         Icon(Icons.Default.HourglassBottom, contentDescription = null, tint = StatusPending, modifier = Modifier.size(18.dp))
                                         Text(
-                                            text = "Terdapat ${pendingWithdrawals.size} permintaan penarikan menunggu persetujuan Anda.",
+                                            text = "Terdapat ${pendingWithdrawals.size} permintaan penarikan menunggu persetujuan Pengurus.",
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             color = Color(0xFFE65100)
@@ -346,7 +345,7 @@ fun AdminDashboardScreen(
                 }
 
                 1 -> {
-                    // TAB 1: Daftar Siswa
+                    // TAB 1: Daftar Anggota
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -354,25 +353,25 @@ fun AdminDashboardScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         OutlinedTextField(
-                            value = studentSearch,
-                            onValueChange = { studentSearch = it },
-                            placeholder = { Text("Cari Siswa / NIS / Kelas...", fontSize = 13.sp) },
+                            value = memberSearch,
+                            onValueChange = { memberSearch = it },
+                            placeholder = { Text("Cari Anggota / No. Rek / Alamat...", fontSize = 13.sp) },
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .testTag("search_student_input")
+                                .testTag("search_member_input")
                         )
 
                         LazyColumn(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            items(filteredStudents, key = { it.nis }) { student ->
-                                StudentAdminCard(
-                                    student = student,
-                                    onClick = { selectedStudentForAction = student }
+                            items(filteredMembers, key = { it.noRek }) { member ->
+                                MemberAdminCard(
+                                    member = member,
+                                    onClick = { selectedMemberForAction = member }
                                 )
                             }
                         }
@@ -390,7 +389,7 @@ fun AdminDashboardScreen(
                         OutlinedTextField(
                             value = txSearch,
                             onValueChange = { txSearch = it },
-                            placeholder = { Text("Cari NIS / Nama / Transaksi...", fontSize = 13.sp) },
+                            placeholder = { Text("Cari No. Rek / Nama / Transaksi...", fontSize = 13.sp) },
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp),
@@ -421,7 +420,7 @@ fun AdminDashboardScreen(
                             items(filteredTransactions, key = { it.id }) { tx ->
                                 TransactionCard(
                                     transaction = tx,
-                                    showStudentInfo = true
+                                    showMemberInfo = true
                                 )
                             }
                         }
@@ -436,7 +435,7 @@ fun AdminDashboardScreen(
         ApproveConfirmDialog(
             transaction = tx,
             onConfirm = { note ->
-                onApproveWithdrawal(tx.id, tx.nis, note)
+                onApproveWithdrawal(tx.id, tx.noRek, note)
                 selectedTxForApproval = null
             },
             onDismiss = { selectedTxForApproval = null }
@@ -448,22 +447,22 @@ fun AdminDashboardScreen(
         RejectConfirmDialog(
             transaction = tx,
             onConfirm = { reason ->
-                onRejectWithdrawal(tx.id, tx.nis, reason)
+                onRejectWithdrawal(tx.id, tx.noRek, reason)
                 selectedTxForRejection = null
             },
             onDismiss = { selectedTxForRejection = null }
         )
     }
 
-    // Student Action Dialog (Admin directly adding deposit/withdrawal for student)
-    selectedStudentForAction?.let { student ->
-        StudentAdminActionDialog(
-            student = student,
+    // Member Action Dialog (Pengurus directly adding deposit/withdrawal for member)
+    selectedMemberForAction?.let { member ->
+        MemberAdminActionDialog(
+            member = member,
             onAddTx = { amount, desc, isSetoran ->
-                onAdminAddTx(amount, desc, student.nis, isSetoran)
-                selectedStudentForAction = null
+                onAdminAddTx(amount, desc, member.noRek, isSetoran)
+                selectedMemberForAction = null
             },
-            onDismiss = { selectedStudentForAction = null }
+            onDismiss = { selectedMemberForAction = null }
         )
     }
 }
@@ -494,13 +493,13 @@ fun PendingWithdrawalItem(
             ) {
                 Column {
                     Text(
-                        text = transaction.namaSiswa,
+                        text = transaction.namaAnggota,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "NIS: ${transaction.nis} • ${transaction.kelasSiswa}",
+                        text = "Rek: ${transaction.noRek} • ${transaction.alamatAnggota}",
                         fontSize = 12.sp,
                         color = NeutralTextSecondary
                     )
@@ -572,15 +571,15 @@ fun PendingWithdrawalItem(
 }
 
 @Composable
-fun StudentAdminCard(
-    student: StudentEntity,
+fun MemberAdminCard(
+    member: MemberEntity,
     onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .testTag("student_card_${student.nis}"),
+            .testTag("member_card_${member.noRek}"),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
@@ -594,7 +593,8 @@ fun StudentAdminCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f)
                 ) {
                     Box(
                         modifier = Modifier
@@ -604,19 +604,19 @@ fun StudentAdminCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = student.nama.take(1).uppercase(),
+                            text = member.namaLengkap.take(1).uppercase(),
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
                     Column {
                         Text(
-                            text = student.nama,
+                            text = member.namaLengkap,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
                         Text(
-                            text = "NIS: ${student.nis} • ${student.kelas}",
+                            text = "Rek: ${member.noRek} • ${member.alamat}",
                             fontSize = 12.sp,
                             color = NeutralTextSecondary
                         )
@@ -625,7 +625,7 @@ fun StudentAdminCard(
 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = CurrencyUtils.formatRupiah(student.saldo),
+                        text = CurrencyUtils.formatRupiah(member.saldo),
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
                         color = PrimaryNavy
@@ -638,14 +638,14 @@ fun StudentAdminCard(
                 }
             }
 
-            if (student.pendingPenarikan > 0) {
+            if (member.pendingPenarikan > 0) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Surface(
                     color = StatusPendingBg,
                     shape = RoundedCornerShape(6.dp)
                 ) {
                     Text(
-                        text = "Pending ACC: ${CurrencyUtils.formatRupiah(student.pendingPenarikan)}",
+                        text = "Pending ACC: ${CurrencyUtils.formatRupiah(member.pendingPenarikan)}",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFFE65100),
@@ -657,13 +657,20 @@ fun StudentAdminCard(
     }
 }
 
+// Compatibility wrapper
+@Composable
+fun StudentAdminCard(
+    student: MemberEntity,
+    onClick: () -> Unit
+) = MemberAdminCard(member = student, onClick = onClick)
+
 @Composable
 fun ApproveConfirmDialog(
     transaction: TransactionEntity,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var note by remember { mutableStateOf("Disetujui Admin - Dana diserahkan di TU") }
+    var note by remember { mutableStateOf("Disetujui Pengurus - Dana diserahkan di loket") }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -681,7 +688,7 @@ fun ApproveConfirmDialog(
                 ) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
                     Text(
-                        text = "ACC Penarikan Siswa",
+                        text = "ACC Penarikan Anggota",
                         fontWeight = FontWeight.Bold,
                         fontSize = 17.sp
                     )
@@ -704,8 +711,10 @@ fun ApproveConfirmDialog(
                         modifier = Modifier.padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(text = "Siswa: ${transaction.namaSiswa} (${transaction.nis})", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Text(text = "Kelas: ${transaction.kelasSiswa}", fontSize = 12.sp)
+                        Text(text = "Anggota: ${transaction.namaAnggota} (Rek: ${transaction.noRek})", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        if (transaction.alamatAnggota.isNotBlank()) {
+                            Text(text = "Alamat: ${transaction.alamatAnggota}", fontSize = 12.sp)
+                        }
                         Text(
                             text = "Nominal: ${CurrencyUtils.formatRupiah(transaction.nominal)}",
                             fontWeight = FontWeight.Bold,
@@ -719,14 +728,14 @@ fun ApproveConfirmDialog(
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
-                    label = { Text("Catatan Admin") },
+                    label = { Text("Catatan Pengurus") },
                     shape = RoundedCornerShape(10.dp),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Text(
-                    text = "Setelah disetujui, saldo siswa akan otomatis berkurang secara resmi sesuai aturan sistem.",
+                    text = "Setelah disetujui, saldo anggota akan otomatis berkurang secara resmi sesuai aturan sistem.",
                     fontSize = 11.sp,
                     color = Color(0xFF2E7D32)
                 )
@@ -763,7 +772,7 @@ fun RejectConfirmDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var reason by remember { mutableStateOf("Saldo tidak mencukupi / Konfirmasi orang tua belum ada") }
+    var reason by remember { mutableStateOf("Saldo tidak mencukupi / Data penarikan belum diverifikasi") }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -790,7 +799,7 @@ fun RejectConfirmDialog(
                 HorizontalDivider()
 
                 Text(
-                    text = "Tolak pengajuan penarikan sebesar ${CurrencyUtils.formatRupiah(transaction.nominal)} dari ${transaction.namaSiswa}:",
+                    text = "Tolak pengajuan penarikan sebesar ${CurrencyUtils.formatRupiah(transaction.nominal)} dari ${transaction.namaAnggota}:",
                     fontSize = 13.sp
                 )
 
@@ -803,7 +812,7 @@ fun RejectConfirmDialog(
                 )
 
                 Text(
-                    text = "Saldo siswa TIDAK akan dipotong. Status transaksi akan ditandai DITOLAK.",
+                    text = "Saldo anggota TIDAK akan dipotong. Status transaksi akan ditandai DITOLAK.",
                     fontSize = 11.sp,
                     color = Color(0xFFC62828)
                 )
@@ -835,8 +844,8 @@ fun RejectConfirmDialog(
 }
 
 @Composable
-fun StudentAdminActionDialog(
-    student: StudentEntity,
+fun MemberAdminActionDialog(
+    member: MemberEntity,
     onAddTx: (Long, String, Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -862,7 +871,7 @@ fun StudentAdminActionDialog(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Kelola Tabungan Siswa",
+                        text = "Kelola Tabungan Anggota",
                         fontWeight = FontWeight.Bold,
                         fontSize = 17.sp
                     )
@@ -879,10 +888,10 @@ fun StudentAdminActionDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
-                        Text(text = "${student.nama} (${student.kelas})", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Text(text = "NIS: ${student.nis}", fontSize = 12.sp, color = NeutralTextSecondary)
+                        Text(text = member.namaLengkap, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(text = "Rek: ${member.noRek} • ${member.alamat}", fontSize = 12.sp, color = NeutralTextSecondary)
                         Text(
-                            text = "Saldo Aktif: ${CurrencyUtils.formatRupiah(student.saldo)}",
+                            text = "Saldo Aktif: ${CurrencyUtils.formatRupiah(member.saldo)}",
                             fontWeight = FontWeight.ExtraBold,
                             color = PrimaryNavy,
                             fontSize = 14.sp
@@ -937,8 +946,8 @@ fun StudentAdminActionDialog(
                 OutlinedTextField(
                     value = noteText,
                     onValueChange = { noteText = it },
-                    label = { Text("Keterangan Petugas") },
-                    placeholder = { Text(if (isSetoran) "Setoran Tunai di TU" else "Penarikan Tunai di TU") },
+                    label = { Text("Keterangan Pengurus") },
+                    placeholder = { Text(if (isSetoran) "Setoran Tunai via Pengurus" else "Penarikan Tunai via Pengurus") },
                     singleLine = true,
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -947,7 +956,7 @@ fun StudentAdminActionDialog(
                 Button(
                     onClick = {
                         if (amount > 0) {
-                            onAddTx(amount, noteText.ifBlank { if (isSetoran) "Setoran Petugas TU" else "Penarikan Petugas TU" }, isSetoran)
+                            onAddTx(amount, noteText.ifBlank { if (isSetoran) "Setoran Petugas" else "Penarikan Petugas" }, isSetoran)
                         }
                     },
                     enabled = amount > 0,
